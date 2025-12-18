@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PianoWave</title>
+<style>
+  * {margin:0;padding:0;box-sizing:border-box;}
+  body {font-family: 'Segoe UI', sans-serif; scroll-behavior: smooth; color: #fff; background-color: #111;}
+  a {text-decoration: none; color: inherit;}
+
+  .hero {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: url('https://images.unsplash.com/photo-1511376777868-611b54f68947?fit=crop&w=1950&q=80') no-repeat center center/cover;
+    text-align: center;
+  }
+  .hero h1 {font-size: 4rem; margin-bottom: 20px; text-shadow: 2px 2px 10px #000;}
+  .hero p {font-size: 1.5rem; margin-bottom: 40px;}
+  .hero button {
+    padding: 15px 30px;
+    margin: 10px;
+    font-size: 1.2rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #ffcc00;
+    color: #111;
+  }
+
+  .section {padding: 80px 20px;}
+  .section h2 {text-align: center; font-size: 2.5rem; margin-bottom: 50px;}
+
+  #piano-section {display:none; padding:40px 20px; text-align:center;}
+  .piano {
+    position: relative;
+    user-select:none;
+    margin:auto;
+    width: max-content;
+    background: rgba(255,255,255,0.05);
+    padding:20px;
+    border-radius:20px;
+    backdrop-filter: blur(20px);
+    border:1px solid rgba(255,255,255,0.14);
+    box-shadow:0 0 25px #b86bff;
+  }
+  .white-key, .black-key {
+    border-radius:6px;
+    border:1px solid rgba(255,255,255,0.14);
+    cursor:pointer;
+  }
+  .white-key {
+    width:46px;
+    height:200px;
+    background:#eaeaf0;
+    margin:0 2px;
+    display:inline-block;
+    vertical-align: bottom;
+  }
+  .white-key.active {background:#d0d0f5; transform:translateY(4px);}
+  .black-key {
+    width:30px;
+    height:120px;
+    background:#000;
+    position:absolute;
+    z-index:2;
+    top:6px; /* 維持目前穩定版本 */
+    margin-left:-15px;
+  }
+  .black-key.active {background:#111; transform:translateY(3px);}
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <h1>PianoWave</h1>
+  <p>觸碰每一個音符</p>
+  <button id="startBtn">立即演奏</button>
+</section>
+
+<section class="section" id="lessons">
+  <h2>基礎樂理入門</h2>
+  <div style="max-width:900px;margin:0 auto;line-height:1.8;color:#ddd;font-size:1.05rem;">
+    <p><strong>音程是什麼？</strong><br>
+    音程指的是兩個音之間的距離，例如 C 到 G 稱為純五度。</p>
+    <p><strong>全音與半音</strong><br>
+    相鄰兩鍵為半音，兩個半音為一個全音。</p>
+    <p><strong>什麼是和弦？</strong><br>
+    三個以上音同時發聲，例如 C-E-G。</p>
+  </div>
+</section>
+
+<section id="piano-section">
+  <h2>自由彈奏鋼琴（四個八度）</h2>
+  <div class="piano" id="piano"></div>
+  <p>請點擊鍵盤發聲</p>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.min.js"></script>
+<script>
+const pianoDiv = document.getElementById('piano');
+const startBtn = document.getElementById('startBtn');
+const whiteKeysOrder = ['C','D','E','F','G','A','B'];
+const blackKeysMap = { 'C':'C#','D':'D#','F':'F#','G':'G#','A':'A#' };
+const octaves = [2,3,4,5];
+let samplerReady = false;
+let pianoSampler;
+
+function initSampler(){
+  if(samplerReady) return;
+  pianoSampler = new Tone.Sampler({
+    urls: {
+      'C2':'C2.mp3','C#2':'Cs2.mp3','D2':'D2.mp3','D#2':'Ds2.mp3','E2':'E2.mp3','F2':'F2.mp3','F#2':'Fs2.mp3','G2':'G2.mp3','G#2':'Gs2.mp3','A2':'A2.mp3','A#2':'As2.mp3','B2':'B2.mp3',
+      'C3':'C3.mp3','C#3':'Cs3.mp3','D3':'D3.mp3','D#3':'Ds3.mp3','E3':'E3.mp3','F3':'F3.mp3','F#3':'Fs3.mp3','G3':'G3.mp3','G#3':'Gs3.mp3','A3':'A3.mp3','A#3':'As3.mp3','B3':'B3.mp3',
+      'C4':'C4.mp3','C#4':'Cs4.mp3','D4':'D4.mp3','D#4':'Ds4.mp3','E4':'E4.mp3','F4':'F4.mp3','F#4':'Fs4.mp3','G4':'G4.mp3','G#4':'Gs4.mp3','A4':'A4.mp3','A#4':'As4.mp3','B4':'B4.mp3',
+      'C5':'C5.mp3','C#5':'Cs5.mp3','D5':'D5.mp3','D#5':'Ds5.mp3','E5':'E5.mp3','F5':'F5.mp3','F#5':'Fs5.mp3','G5':'G5.mp3','G#5':'Gs5.mp3','A5':'A5.mp3','A#5':'As5.mp3','B5':'B5.mp3'
+    },
+    baseUrl: 'https://tonejs.github.io/audio/salamander/'
+  }).toDestination();
+  samplerReady = true;
+}
+
+function createKeyboard(){
+  pianoDiv.innerHTML='';
+  let leftPos = 0;
+  for(const oct of octaves){
+    for(const w of whiteKeysOrder){
+      const note = w+oct;
+      const wk = document.createElement('div');
+      wk.className='white-key';
+      wk.onmousedown = async ()=>{
+        await Tone.start();
+        initSampler();
+        pianoSampler.triggerAttackRelease(note,'8n');
+        wk.classList.add('active');
+      };
+      wk.onmouseup = ()=>wk.classList.remove('active');
+      pianoDiv.appendChild(wk);
+
+      if(blackKeysMap[w]){
+        const bk = document.createElement('div');
+        bk.className='black-key';
+        const bnote = blackKeysMap[w]+oct;
+        bk.style.left = (leftPos + 30) + 'px';
+        bk.onmousedown = async ()=>{
+          await Tone.start();
+          initSampler();
+          pianoSampler.triggerAttackRelease(bnote,'8n');
+          bk.classList.add('active');
+        };
+        bk.onmouseup = ()=>bk.classList.remove('active');
+        pianoDiv.appendChild(bk);
+      }
+      leftPos += 50;
+    }
+  }
+}
+
+startBtn.onclick = async ()=>{
+  document.getElementById('piano-section').style.display='block';
+  await Tone.start();
+  initSampler();
+  createKeyboard();
+  pianoDiv.scrollIntoView({behavior:'smooth'});
+};
+</script>
+</body>
+</html>
